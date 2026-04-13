@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* 🌍 ROOT */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* ✅ RESET */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* 🌈 BODY */
+body {
+  background: linear-gradient(135deg, #e0f7fa, #ffffff);
+  background-color: #AECCE4;
+  color: black;
+  font-family: "Inter", sans-serif;
+  overflow-x: hidden;
+}
+
+/* ✅ Better universal box model */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 🔥 GLASS EFFECT (PREMIUM UI) */
+.glass {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 172, 193, 0.2);
+}
+
+/* ✨ INPUT */
+.input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  margin-bottom: 10px;
+  outline: none;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.input:focus {
+  border-color: #00acc1;
+  box-shadow: 0 0 12px rgba(0, 172, 193, 0.3);
+}
+
+/* 🔥 BUTTON GLOW */
+.btn-glow {
+  background: linear-gradient(135deg, #00acc1, #007c91);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 20px rgba(0, 172, 193, 0.6);
+  transform: scale(1.05);
+}
+
+/* 🔥 TEXT SELECTION */
+::selection {
+  background: #b2ebf2;
+  color: #004d40;
+}
+
+/* 🔥 SCROLLBAR */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 172, 193, 0.4);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 172, 193, 0.7);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
