@@ -25,6 +25,7 @@ const navLinks = [
   { label: "Products", href: "/explore", icon: <FaBoxOpen /> },
   { label: "Custom Bottle", href: "/customize", icon: <FaPalette /> },
   { label: "Feedback", href: "/#feedback", icon: <FaCommentDots /> },
+  { label: "About Us", href: "/aboutus", icon: <FaUserCircle /> },
   { label: "Track", href: "/track", icon: <FaTruck /> },
 ];
 
@@ -85,9 +86,13 @@ export default function Navbar() {
       return pathname === "/" && currentHash === "#feedback";
     }
 
-    if (path === "/") {
-      return pathname === "/" && currentHash !== "#feedback";
-    }
+    if (path === "/#aboutus") {
+    return pathname === "/" && currentHash === "#aboutus";
+  }
+
+  if (path === "/") {
+    return pathname === "/" && currentHash !== "#feedback" && currentHash !== "#aboutus";
+  }
 
     return pathname === path;
   };
