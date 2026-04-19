@@ -39,12 +39,14 @@ export async function POST(req: Request) {
       paidAmount = 0,
       discount = 0,
       notes = "",
-
-      // bulk-order friendly optional fields
       orderType = "Normal",
       bulkOrder = false,
       companyName = "",
       category = "",
+      mainOrderId = "",
+      totalBoxes = 0,
+      totalProducts = 0,
+      source = "",
     } = body;
 
     if (!name || !phone || !address || !product || !size) {
@@ -58,6 +60,8 @@ export async function POST(req: Request) {
     const parsedTotal = Number(totalAmount);
     const parsedPaid = Number(paidAmount);
     const parsedDiscount = Number(discount);
+    const parsedTotalBoxes = Number(totalBoxes || 0);
+    const parsedTotalProducts = Number(totalProducts || 0);
 
     if (!parsedBoxes || parsedBoxes < 1) {
       return NextResponse.json(
@@ -72,6 +76,9 @@ export async function POST(req: Request) {
     const safeBulkOrder =
       Boolean(bulkOrder) ||
       safeOrderType === "Bulk" ||
+      String(mainOrderId).trim().length > 0 ||
+      parsedTotalProducts > 1 ||
+      parsedTotalBoxes >= 50 ||
       parsedBoxes >= 200 ||
       String(category).toLowerCase() === "bulk" ||
       String(packaging).toLowerCase().includes("bulk") ||
@@ -79,6 +86,10 @@ export async function POST(req: Request) {
       String(companyName).trim().length > 0;
 
     const generatedOrderId = generateOrderId();
+
+    const finalMainOrderId = safeBulkOrder
+      ? String(mainOrderId).trim() || generatedOrderId
+      : "";
 
     const orderPayload: Record<string, any> = {
       userId,
@@ -101,13 +112,22 @@ export async function POST(req: Request) {
       notes,
       approvalStatus: "Pending",
       status: "Pending Approval",
+      paymentStatus:
+        parsedPaid <= 0
+          ? "Pending"
+          : parsedPaid < parsedTotal - parsedDiscount
+          ? "Partial"
+          : "Paid",
     };
 
-    // Add bulk-order related fields only when present / useful
     if (safeBulkOrder) {
       orderPayload.bulkOrder = true;
       orderPayload.orderType = "Bulk";
+      orderPayload.mainOrderId = finalMainOrderId;
+      orderPayload.totalBoxes = parsedTotalBoxes > 0 ? parsedTotalBoxes : parsedBoxes;
+      orderPayload.totalProducts = parsedTotalProducts > 0 ? parsedTotalProducts : 1;
     } else {
+      orderPayload.bulkOrder = false;
       orderPayload.orderType = "Normal";
     }
 
@@ -119,6 +139,10 @@ export async function POST(req: Request) {
       orderPayload.category = String(category).trim();
     }
 
+    if (String(source).trim()) {
+      orderPayload.source = String(source).trim();
+    }
+
     const order = await Order.create(orderPayload);
 
     return NextResponse.json(
@@ -126,6 +150,7 @@ export async function POST(req: Request) {
         success: true,
         message: "Order created successfully",
         orderId: generatedOrderId,
+        mainOrderId: safeBulkOrder ? finalMainOrderId : "",
         order,
       },
       { status: 201 }

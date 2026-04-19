@@ -14,77 +14,170 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const orders = await Order.find({})
-      .sort({ createdAt: -1 })
-      .lean();
+    const orders = await Order.find({}).sort({ createdAt: -1 }).lean();
 
-    if (!Array.isArray(orders)) {
+    if (!Array.isArray(orders) || orders.length === 0) {
       return NextResponse.json(
         { success: true, orders: [] },
         { status: 200 }
       );
     }
 
-    // ✅ GROUP BULK ORDERS BY mainOrderId
     const groupedMap = new Map<string, any>();
-
     const normalOrders: any[] = [];
 
     for (const order of orders) {
-      const isBulk = order.bulkOrder === true || order.orderType === "Bulk";
+      const isBulk =
+        order.bulkOrder === true ||
+        order.orderType === "Bulk" ||
+        !!order.mainOrderId;
 
-      // 👉 NORMAL ORDER
-      if (!isBulk || !order.mainOrderId) {
+      if (!isBulk) {
         normalOrders.push({
           ...order,
-          type: "single",
+          kind: "single",
+          childOrders: [],
         });
         continue;
       }
 
-      // 👉 BULK ORDER GROUPING
-      const key = order.mainOrderId;
+      const mainOrderId =
+        String(order.mainOrderId || "").trim() ||
+        String(order.orderId || "").trim();
 
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, {
-          type: "bulk",
-          mainOrderId: key,
-          name: order.name,
-          email: order.email,
-          phone: order.phone,
+      if (!mainOrderId) {
+        normalOrders.push({
+          ...order,
+          kind: "single",
+          childOrders: [],
+        });
+        continue;
+      }
 
-          totalBoxes: order.totalBoxes || 0,
-          totalProducts: order.totalProducts || 0,
-
-          status: order.status,
-          approvalStatus: order.approvalStatus,
-
+      if (!groupedMap.has(mainOrderId)) {
+        groupedMap.set(mainOrderId, {
+          _id: order._id,
+          kind: "bulk",
+          bulkOrder: true,
+          orderType: "Bulk",
+          orderId: mainOrderId,
+          mainOrderId,
+          userId: order.userId || "",
+          name: order.name || "",
+          email: order.email || "",
+          phone: order.phone || "",
+          address: order.address || "",
+          city: order.city || "",
+          state: order.state || "",
+          pincode: order.pincode || "",
+          product: "",
+          size: "",
+          packaging: order.packaging || "",
+          payment: order.payment || "COD",
+          totalAmount: 0,
+          paidAmount: 0,
+          remainingAmount: 0,
+          discount: 0,
+          paymentStatus: "Pending",
+          approvalStatus: order.approvalStatus || "Pending",
+          status: order.status || "Pending Approval",
+          notes: order.notes || "",
+          companyName: order.companyName || "",
+          category: order.category || "Bulk",
+          totalBoxes: 0,
+          totalProducts: 0,
+          source: order.source || "",
           createdAt: order.createdAt,
           updatedAt: order.updatedAt,
-
-          items: [],
+          childOrders: [],
         });
       }
 
-      const group = groupedMap.get(key);
+      const group = groupedMap.get(mainOrderId);
 
-      group.items.push({
-        orderId: order.orderId,
-        product: order.product,
-        size: order.size,
-        boxes: order.boxes,
-        status: order.status,
-        approvalStatus: order.approvalStatus,
-      });
+      const childOrder = {
+        ...order,
+        mainOrderId,
+      };
+
+      group.childOrders.push(childOrder);
+
+      group.totalBoxes += Number(order.boxes || 0);
+      group.totalAmount += Number(order.totalAmount || 0);
+      group.paidAmount += Number(order.paidAmount || 0);
+      group.remainingAmount += Number(order.remainingAmount || 0);
+      group.discount += Number(order.discount || 0);
+      group.totalProducts = group.childOrders.length;
+
+      if (!group.companyName && order.companyName) {
+        group.companyName = order.companyName;
+      }
+
+      if (!group.packaging && order.packaging) {
+        group.packaging = order.packaging;
+      }
+
+      if (!group.notes && order.notes) {
+        group.notes = order.notes;
+      }
+
+      const statuses = group.childOrders.map(
+        (item: any) => item.status || "Pending Approval"
+      );
+      const approvals = group.childOrders.map(
+        (item: any) => item.approvalStatus || "Pending"
+      );
+      const payments = group.childOrders.map(
+        (item: any) => item.paymentStatus || "Pending"
+      );
+
+      group.status = statuses.every((s: string) => s === "Delivered")
+        ? "Delivered"
+        : statuses.every((s: string) => s === "Shipped")
+        ? "Shipped"
+        : statuses.some((s: string) => s === "Packaging")
+        ? "Packaging"
+        : statuses.some((s: string) => s === "Processing")
+        ? "Processing"
+        : statuses.some((s: string) => s === "Confirmed")
+        ? "Confirmed"
+        : statuses.every((s: string) => s === "Cancelled")
+        ? "Cancelled"
+        : "Pending Approval";
+
+      group.approvalStatus = approvals.every((a: string) => a === "Approved")
+        ? "Approved"
+        : approvals.every((a: string) => a === "Rejected")
+        ? "Rejected"
+        : "Pending";
+
+      group.paymentStatus = payments.every((p: string) => p === "Paid")
+        ? "Paid"
+        : payments.some((p: string) => p === "Partial" || p === "Paid")
+        ? "Partial"
+        : "Pending";
+
+      const firstChild = group.childOrders[0];
+
+      if (group.childOrders.length === 1) {
+        group.product = firstChild?.product || "Product";
+        group.size = firstChild?.size || "-";
+      } else {
+        group.product = `${group.childOrders.length} products`;
+        group.size = `${group.childOrders.length} item sizes`;
+      }
     }
 
-    const bulkOrders = Array.from(groupedMap.values());
+    const bulkOrders = Array.from(groupedMap.values()).sort(
+      (a: any, b: any) =>
+        new Date(b.createdAt || "").getTime() -
+        new Date(a.createdAt || "").getTime()
+    );
 
-    // ✅ FINAL RESPONSE (MERGED)
     const finalOrders = [...bulkOrders, ...normalOrders].sort(
       (a: any, b: any) =>
-        new Date(b.createdAt).getTime() -
-        new Date(a.createdAt).getTime()
+        new Date(b.createdAt || "").getTime() -
+        new Date(a.createdAt || "").getTime()
     );
 
     return NextResponse.json(

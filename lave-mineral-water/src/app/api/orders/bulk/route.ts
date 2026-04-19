@@ -112,6 +112,7 @@ export async function POST(req: Request) {
       paidAmount: 0,
       discount: 0,
       remainingAmount: 0,
+      paymentStatus: "Pending",
 
       notes: `Bulk order created from ${source}`,
       approvalStatus: "Pending",

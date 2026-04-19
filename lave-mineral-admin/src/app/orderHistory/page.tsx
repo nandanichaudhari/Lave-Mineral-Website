@@ -71,6 +71,15 @@ type Order = {
   totalProducts?: number;
   totalBoxes?: number;
   source?: string;
+  itemTrackingId?: string;
+};
+
+type ApiOrder = Order & {
+  _id?: string;
+  kind?: "single" | "bulk";
+  type?: "single" | "bulk";
+  items?: Order[];
+  childOrders?: Order[];
 };
 
 type DisplayOrder = {
@@ -146,9 +155,8 @@ export default function AdminOrderHistoryPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
@@ -185,11 +193,9 @@ export default function AdminOrderHistoryPage() {
     }
   }, [session, status, router]);
 
-  const fetchOrders = useCallback(async (showSoftLoader = false) => {
+  const fetchOrders = useCallback(async (isSilent = false) => {
     try {
-      if (showSoftLoader) {
-        setPageLoading(true);
-      } else {
+      if (!isSilent) {
         setLoading(true);
       }
 
@@ -206,7 +212,7 @@ export default function AdminOrderHistoryPage() {
       const fetchedOrders = Array.isArray(data?.orders) ? data.orders : [];
 
       const sortedOrders = fetchedOrders.sort(
-        (a: Order, b: Order) =>
+        (a: ApiOrder, b: ApiOrder) =>
           new Date(b.createdAt || "").getTime() -
           new Date(a.createdAt || "").getTime()
       );
@@ -216,8 +222,9 @@ export default function AdminOrderHistoryPage() {
     } catch (err: any) {
       setError(err?.message || "Failed to load orders");
     } finally {
-      setLoading(false);
-      setPageLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -292,189 +299,162 @@ export default function AdminOrderHistoryPage() {
   );
 
   const groupedDisplayOrders = useMemo<DisplayOrder[]>(() => {
-    const bulkGroupMap = new Map<string, Order[]>();
-    const singleRows: DisplayOrder[] = [];
+    return (orders || []).map((order: ApiOrder, index: number) => {
+      const apiChildOrders = Array.isArray(order.childOrders)
+        ? order.childOrders
+        : Array.isArray(order.items)
+        ? order.items
+        : [];
 
-    for (const order of orders) {
-      const isBulk = isBulkOrder(order);
-      const groupKey = safeString(order.mainOrderId).trim();
+      const kind: "single" | "bulk" =
+        order.kind === "bulk" ||
+        order.type === "bulk" ||
+        order.bulkOrder === true ||
+        order.orderType === "Bulk" ||
+        apiChildOrders.length > 0
+          ? "bulk"
+          : "single";
 
-      if (isBulk && groupKey) {
-        if (!bulkGroupMap.has(groupKey)) {
-          bulkGroupMap.set(groupKey, []);
-        }
-        bulkGroupMap.get(groupKey)!.push(order);
-      } else {
-        singleRows.push({
-          id: safeString(order.orderId) || crypto.randomUUID(),
-          kind: "single",
-          orderId: safeString(order.orderId) || "N/A",
-          mainOrderId: safeString(order.mainOrderId),
-          userId: safeString(order.userId),
-          name: safeString(order.name) || "Customer",
-          email: safeString(order.email),
-          phone: safeString(order.phone),
-          address: safeString(order.address),
-          city: safeString(order.city),
-          state: safeString(order.state),
-          pincode: safeString(order.pincode),
-          product: safeString(order.product) || "Product",
-          size: safeString(order.size) || "-",
-          packaging: safeString(order.packaging),
-          boxes: safeNumber(order.boxes),
-          payment: safeString(order.payment) || "-",
-          totalAmount: safeNumber(order.totalAmount),
-          paidAmount: safeNumber(order.paidAmount),
-          remainingAmount: safeNumber(order.remainingAmount),
-          discount: safeNumber(order.discount),
-          paymentStatus: order.paymentStatus || "Pending",
-          approvalStatus: order.approvalStatus || "Pending",
-          status: order.status || "Pending Approval",
-          notes: safeString(order.notes),
-          createdAt: order.createdAt,
-          updatedAt: order.updatedAt,
-          orderType: order.orderType || "Normal",
-          bulkOrder: Boolean(order.bulkOrder),
-          companyName: safeString(order.companyName),
-          category: safeString(order.category),
-          totalProducts: safeNumber(order.totalProducts),
-          totalBoxes: safeNumber(order.totalBoxes),
-          source: safeString(order.source),
-          childOrders: [],
-        });
-      }
-    }
+      const normalizedChildOrders: Order[] =
+        kind === "bulk"
+          ? apiChildOrders.map((item: any) => ({
+              orderId: item.orderId || item.itemTrackingId || "",
+              mainOrderId: order.mainOrderId || order.orderId || "",
+              userId: item.userId || order.userId || "",
+              name: item.name || order.name || "",
+              email: item.email || order.email || "",
+              phone: item.phone || order.phone || "",
+              address: item.address || order.address || "",
+              city: item.city || order.city || "",
+              state: item.state || order.state || "",
+              pincode: item.pincode || order.pincode || "",
+              product: item.product || "",
+              size: item.size || "",
+              packaging: item.packaging || order.packaging || "",
+              boxes: Number(item.boxes || 0),
+              payment: item.payment || order.payment || "COD",
+              totalAmount: Number(item.totalAmount || 0),
+              paidAmount: Number(item.paidAmount || 0),
+              remainingAmount: Number(item.remainingAmount || 0),
+              discount: Number(item.discount || 0),
+              paymentStatus: item.paymentStatus || "Pending",
+              approvalStatus: item.approvalStatus || "Pending",
+              status: item.status || "Pending Approval",
+              notes: item.notes || "",
+              createdAt: item.createdAt || order.createdAt,
+              updatedAt: item.updatedAt || order.updatedAt,
+              orderType: "Bulk",
+              bulkOrder: true,
+              companyName: item.companyName || order.companyName || "",
+              category: item.category || order.category || "Bulk",
+              totalProducts: Number(
+                order.totalProducts || apiChildOrders.length || 0
+              ),
+              totalBoxes: Number(order.totalBoxes || 0),
+              source: item.source || order.source || "",
+            }))
+          : [];
 
-    const bulkRows: DisplayOrder[] = Array.from(bulkGroupMap.entries()).map(
-      ([mainOrderId, childOrders]) => {
-        const sortedChildOrders = [...childOrders].sort(
-          (a, b) =>
-            new Date(a.createdAt || "").getTime() -
-            new Date(b.createdAt || "").getTime()
-        );
+      const totalQty =
+        kind === "bulk"
+          ? normalizedChildOrders.reduce(
+              (sum: number, item: any) => sum + Number(item.boxes || 0),
+              0
+            )
+          : Number(order.boxes || 0);
 
-        const base = sortedChildOrders[0] || childOrders[0];
+      const totalAmount =
+        kind === "bulk"
+          ? normalizedChildOrders.reduce(
+              (sum: number, item: any) => sum + Number(item.totalAmount || 0),
+              0
+            )
+          : Number(order.totalAmount || 0);
 
-        const totalQty = childOrders.reduce(
-          (sum, item) => sum + safeNumber(item.boxes),
-          0
-        );
-        const totalAmount = childOrders.reduce(
-          (sum, item) => sum + safeNumber(item.totalAmount),
-          0
-        );
-        const paidAmount = childOrders.reduce(
-          (sum, item) => sum + safeNumber(item.paidAmount),
-          0
-        );
-        const remainingAmount = childOrders.reduce(
-          (sum, item) => sum + safeNumber(item.remainingAmount),
-          0
-        );
-        const discount = childOrders.reduce(
-          (sum, item) => sum + safeNumber(item.discount),
-          0
-        );
+      const paidAmount =
+        kind === "bulk"
+          ? normalizedChildOrders.reduce(
+              (sum: number, item: any) => sum + Number(item.paidAmount || 0),
+              0
+            )
+          : Number(order.paidAmount || 0);
 
-        const statuses = childOrders.map(
-          (item) => item.status || "Pending Approval"
-        );
-        const approvals = childOrders.map(
-          (item) => item.approvalStatus || "Pending"
-        );
-        const paymentStatuses = childOrders.map(
-          (item) => item.paymentStatus || "Pending"
-        );
+      const remainingAmount =
+        kind === "bulk"
+          ? normalizedChildOrders.reduce(
+              (sum: number, item: any) =>
+                sum + Number(item.remainingAmount || 0),
+              0
+            )
+          : Number(order.remainingAmount || 0);
 
-        const derivedStatus: DisplayOrder["status"] = statuses.every(
-          (s) => s === "Delivered"
-        )
-          ? "Delivered"
-          : statuses.every((s) => s === "Shipped")
-          ? "Shipped"
-          : statuses.some((s) => s === "Packaging")
-          ? "Packaging"
-          : statuses.some((s) => s === "Processing")
-          ? "Processing"
-          : statuses.some((s) => s === "Confirmed")
-          ? "Confirmed"
-          : statuses.every((s) => s === "Cancelled")
-          ? "Cancelled"
-          : "Pending Approval";
+      const discount =
+        kind === "bulk"
+          ? normalizedChildOrders.reduce(
+              (sum: number, item: any) => sum + Number(item.discount || 0),
+              0
+            )
+          : Number(order.discount || 0);
 
-        const derivedApproval: DisplayOrder["approvalStatus"] = approvals.every(
-          (a) => a === "Approved"
-        )
-          ? "Approved"
-          : approvals.every((a) => a === "Rejected")
-          ? "Rejected"
-          : "Pending";
+      const firstChild = normalizedChildOrders[0];
 
-        const derivedPayment: DisplayOrder["paymentStatus"] = paymentStatuses.every(
-          (p) => p === "Paid"
-        )
-          ? "Paid"
-          : paymentStatuses.some((p) => p === "Partial" || p === "Paid")
-          ? "Partial"
-          : "Pending";
-
-        const firstProduct = safeString(childOrders[0]?.product) || "Product";
-        const firstSize = safeString(childOrders[0]?.size) || "-";
-
-        const productsLabel =
-          childOrders.length === 1
-            ? firstProduct
-            : `${firstProduct} +${childOrders.length - 1} more`;
-
-        const sizesLabel =
-          childOrders.length === 1 ? firstSize : `${childOrders.length} item sizes`;
-
-        return {
-          id: mainOrderId,
-          kind: "bulk",
-          orderId: mainOrderId,
-          mainOrderId,
-          userId: safeString(base?.userId),
-          name: safeString(base?.name) || "Customer",
-          email: safeString(base?.email),
-          phone: safeString(base?.phone),
-          address: safeString(base?.address),
-          city: safeString(base?.city),
-          state: safeString(base?.state),
-          pincode: safeString(base?.pincode),
-          product: productsLabel,
-          size: sizesLabel,
-          packaging: safeString(base?.packaging),
-          boxes: totalQty,
-          payment: safeString(base?.payment) || "-",
-          totalAmount,
-          paidAmount,
-          remainingAmount,
-          discount,
-          paymentStatus: derivedPayment,
-          approvalStatus: derivedApproval,
-          status: derivedStatus,
-          notes: safeString(base?.notes),
-          createdAt: base?.createdAt,
-          updatedAt: base?.updatedAt,
-          orderType: "Bulk",
-          bulkOrder: true,
-          companyName: safeString(base?.companyName),
-          category: "Bulk",
-          totalProducts: childOrders.length,
-          totalBoxes: totalQty,
-          source: safeString(base?.source),
-          childOrders: sortedChildOrders,
-        };
-      }
-    );
-
-    return [...bulkRows, ...singleRows].sort(
-      (a, b) =>
-        new Date(b.createdAt || "").getTime() -
-        new Date(a.createdAt || "").getTime()
-    );
-  }, [orders, isBulkOrder]);
+      return {
+        id: String(order._id || order.orderId || order.mainOrderId || index),
+        kind,
+        orderId: String(order.orderId || order.mainOrderId || "N/A"),
+        mainOrderId: String(order.mainOrderId || ""),
+        userId: String(order.userId || ""),
+        name: String(order.name || "Customer"),
+        email: String(order.email || ""),
+        phone: String(order.phone || ""),
+        address: String(order.address || ""),
+        city: String(order.city || ""),
+        state: String(order.state || ""),
+        pincode: String(order.pincode || ""),
+        product:
+          kind === "bulk"
+            ? normalizedChildOrders.length === 1
+              ? firstChild?.product || "Product"
+              : `${normalizedChildOrders.length} products`
+            : String(order.product || "Product"),
+        size:
+          kind === "bulk"
+            ? normalizedChildOrders.length === 1
+              ? firstChild?.size || "-"
+              : `${normalizedChildOrders.length} item sizes`
+            : String(order.size || "-"),
+        packaging: String(order.packaging || ""),
+        boxes: Number(
+          kind === "bulk" ? order.totalBoxes || totalQty : order.boxes || 0
+        ),
+        payment: String(order.payment || "COD"),
+        totalAmount,
+        paidAmount,
+        remainingAmount,
+        discount,
+        paymentStatus: order.paymentStatus || "Pending",
+        approvalStatus: order.approvalStatus || "Pending",
+        status: order.status || "Pending Approval",
+        notes: String(order.notes || ""),
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        orderType: kind === "bulk" ? "Bulk" : "Normal",
+        bulkOrder: kind === "bulk",
+        companyName: String(order.companyName || ""),
+        category: String(order.category || (kind === "bulk" ? "Bulk" : "")),
+        totalProducts:
+          kind === "bulk"
+            ? Number(order.totalProducts || normalizedChildOrders.length || 0)
+            : 1,
+        totalBoxes:
+          kind === "bulk"
+            ? Number(order.totalBoxes || totalQty || 0)
+            : Number(order.boxes || 0),
+        source: String(order.source || ""),
+        childOrders: normalizedChildOrders,
+      };
+    });
+  }, [orders]);
 
   const stats = useMemo(() => {
     return {
@@ -605,8 +585,8 @@ export default function AdminOrderHistoryPage() {
       o.product,
       o.size,
       o.packaging || "",
-      o.boxes,
-      o.kind === "bulk" ? o.childOrders?.length || 0 : 1,
+      o.totalBoxes || o.boxes,
+      o.kind === "bulk" ? o.totalProducts || o.childOrders?.length || 0 : 1,
       o.totalAmount,
       o.paidAmount,
       o.remainingAmount,
@@ -661,8 +641,8 @@ export default function AdminOrderHistoryPage() {
 Regarding your bulk order:
 
 Main Order ID: ${order.orderId}
-Total Quantity: ${order.boxes}
-Items: ${order.childOrders?.length || 0}
+Total Quantity: ${order.totalBoxes || order.boxes}
+Items: ${order.totalProducts || order.childOrders?.length || 0}
 
 ${itemLines}
 
@@ -960,7 +940,10 @@ Lave Mineral Water Team`;
                     value={String(
                       groupedDisplayOrders
                         .filter((o) => o.kind === "bulk")
-                        .reduce((sum, o) => sum + Number(o.boxes || 0), 0)
+                        .reduce(
+                          (sum, o) => sum + Number(o.totalBoxes || o.boxes || 0),
+                          0
+                        )
                     )}
                   />
                 </div>
@@ -979,22 +962,6 @@ Lave Mineral Water Team`;
                 {error}
               </div>
             )}
-
-            {pageLoading && !loading && (
-              <div className="px-5 py-3 border-b border-slate-200 bg-[#f6faff] text-sm text-[#0066ff]">
-                Refreshing latest orders...
-              </div>
-            )}
-
-            <div className="hidden xl:grid grid-cols-[1.15fr_1.55fr_0.9fr_0.9fr_0.95fr_1.05fr_0.8fr] gap-4 px-6 py-4 border-b border-slate-200 text-slate-500 text-sm font-semibold bg-[linear-gradient(180deg,#fbfdff_0%,#f5faff_100%)]">
-              <div>Order ID</div>
-              <div>Customer</div>
-              <div>Date</div>
-              <div>Total</div>
-              <div>Quantity</div>
-              <div>Status</div>
-              <div>Actions</div>
-            </div>
 
             {loading ? (
               <div className="px-5 py-16 text-center text-slate-500">
@@ -1033,7 +1000,7 @@ Lave Mineral Water Team`;
                               <div className="mt-2 flex flex-wrap gap-2">
                                 <BulkBadge />
                                 <span className="inline-flex items-center rounded-full bg-white border border-[#dbe7f6] px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                                  {order.childOrders?.length || 0} items
+                                  {order.totalProducts || order.childOrders?.length || 0} items
                                 </span>
                               </div>
                             )}
@@ -1101,7 +1068,7 @@ Lave Mineral Water Team`;
                           </div>
 
                           <div className="font-semibold text-slate-700">
-                            <div>{order.boxes}</div>
+                            <div>{order.totalBoxes || order.boxes || 0}</div>
                             {bulk && (
                               <div className="mt-1 text-[11px] font-medium text-[#0066ff]">
                                 Total qty
@@ -1292,7 +1259,7 @@ Lave Mineral Water Team`;
                 label={selectedOrder.kind === "bulk" ? "Products" : "Product"}
                 value={
                   selectedOrder.kind === "bulk"
-                    ? `${selectedOrder.childOrders?.length || 0} items in this bulk order`
+                    ? `${selectedOrder.totalProducts || selectedOrder.childOrders?.length || 0} items in this bulk order`
                     : `${selectedOrder.product} • ${selectedOrder.size}`
                 }
               />
@@ -1315,7 +1282,7 @@ Lave Mineral Water Team`;
               <InfoBox
                 icon={<FaBoxOpen />}
                 label={selectedOrder.kind === "bulk" ? "Total Quantity" : "Quantity"}
-                value={String(selectedOrder.boxes)}
+                value={String(selectedOrder.totalBoxes || selectedOrder.boxes || 0)}
               />
               <InfoBox
                 icon={<FaCheckCircle />}
@@ -1350,7 +1317,11 @@ Lave Mineral Water Team`;
                 <InfoBox
                   icon={<FaBoxes />}
                   label="Items Count"
-                  value={String(selectedOrder.childOrders?.length || 0)}
+                  value={String(
+                    selectedOrder.totalProducts ||
+                      selectedOrder.childOrders?.length ||
+                      0
+                  )}
                 />
               )}
             </div>
@@ -1389,13 +1360,17 @@ Lave Mineral Water Team`;
                 <div className="space-y-3">
                   {selectedOrder.childOrders.map((item, idx) => (
                     <div
-                      key={safeString(item.orderId) || `${safeString(item.product)}-${idx}`}
+                      key={
+                        safeString(item.orderId) ||
+                        safeString(item.itemTrackingId) ||
+                        `${safeString(item.product)}-${idx}`
+                      }
                       className="rounded-2xl border border-[#e4edf9] bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4"
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-[#0066ff] break-all">
-                            {safeString(item.orderId) || "N/A"}
+                            {safeString(item.orderId || item.itemTrackingId) || "N/A"}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-slate-900">
                             {safeString(item.product) || "Product"} • {safeString(item.size) || "-"}
@@ -1822,7 +1797,7 @@ function MobileGroupedCard({
           {isBulk && <BulkBadge />}
           {isBulk && (
             <span className="inline-flex items-center rounded-full bg-white border border-[#dbe7f6] px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-              {order.childOrders?.length || 0} items
+              {order.totalProducts || order.childOrders?.length || 0} items
             </span>
           )}
         </div>
@@ -1854,12 +1829,16 @@ function MobileGroupedCard({
           <MiniInfo
             icon={<FaClock />}
             label="Date"
-            value={order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-"}
+            value={
+              order.createdAt
+                ? new Date(order.createdAt).toLocaleDateString()
+                : "-"
+            }
           />
           <MiniInfo
             icon={<FaBoxOpen />}
             label={isBulk ? "Total Qty" : "Quantity"}
-            value={String(order.boxes)}
+            value={String(order.totalBoxes || order.boxes || 0)}
           />
           <MiniInfo
             icon={<FaWallet />}
@@ -1869,7 +1848,11 @@ function MobileGroupedCard({
           <MiniInfo
             icon={<FaClipboardList />}
             label={isBulk ? "Items" : "Product"}
-            value={isBulk ? `${order.childOrders?.length || 0} items` : order.product}
+            value={
+              isBulk
+                ? `${order.totalProducts || order.childOrders?.length || 0} items`
+                : order.product
+            }
           />
         </div>
 
