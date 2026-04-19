@@ -11,7 +11,17 @@ import {
   FaPen,
   FaTimes,
   FaSignOutAlt,
+  FaPlus,
+  FaTrash,
 } from "react-icons/fa";
+
+type AlternateAddress = {
+  label: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
 
 export default function ProfilePage() {
   const { data: session, status, update } = useSession();
@@ -23,13 +33,42 @@ export default function ProfilePage() {
   const [formEmail, setFormEmail] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formAddress, setFormAddress] = useState("");
+  const [formCity, setFormCity] = useState("");
+  const [formState, setFormState] = useState("");
+  const [formPincode, setFormPincode] = useState("");
+
+  const [alternatePhones, setAlternatePhones] = useState<string[]>([]);
+  const [alternateAddresses, setAlternateAddresses] = useState<AlternateAddress[]>([]);
+
+  const [profileData, setProfileData] = useState<any>(null);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch("/api/profile");
+        const data = await res.json();
+
+        const user = data?.user || null;
+        if (!user) return;
+
+        setProfileData(user);
+
+        setFormName(user.name || "");
+        setFormEmail(user.email || "");
+        setFormPhone(user.phone || "");
+        setFormAddress(user.address || "");
+        setFormCity(user.city || "");
+        setFormState(user.state || "");
+        setFormPincode(user.pincode || "");
+        setAlternatePhones(Array.isArray(user.alternatePhoneNumbers) ? user.alternatePhoneNumbers : []);
+        setAlternateAddresses(Array.isArray(user.alternateAddresses) ? user.alternateAddresses : []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     if (session?.user) {
-      setFormName(session.user.name || "");
-      setFormEmail(session.user.email || "");
-      setFormPhone(session.user.phone || "");
-      setFormAddress(session.user.address || "");
+      fetchProfile();
     }
   }, [session]);
 
@@ -68,6 +107,11 @@ export default function ProfilePage() {
           name: formName,
           phone: formPhone,
           address: formAddress,
+          city: formCity,
+          state: formState,
+          pincode: formPincode,
+          alternatePhoneNumbers: alternatePhones,
+          alternateAddresses,
         }),
       });
 
@@ -87,6 +131,7 @@ export default function ProfilePage() {
         },
       });
 
+      setProfileData(data.user);
       alert("Profile updated successfully!");
       setShowSettings(false);
     } catch (error) {
@@ -101,6 +146,53 @@ export default function ProfilePage() {
     await signOut({ redirect: false });
     window.location.href = "/";
   };
+
+  const addAlternatePhone = () => {
+    setAlternatePhones((prev) => [...prev, ""]);
+  };
+
+  const updateAlternatePhone = (index: number, value: string) => {
+    setAlternatePhones((prev) =>
+      prev.map((item, i) => (i === index ? value : item))
+    );
+  };
+
+  const removeAlternatePhone = (index: number) => {
+    setAlternatePhones((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addAlternateAddress = () => {
+    setAlternateAddresses((prev) => [
+      ...prev,
+      {
+        label: `Address ${prev.length + 1}`,
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
+      },
+    ]);
+  };
+
+  const updateAlternateAddress = (
+    index: number,
+    field: keyof AlternateAddress,
+    value: string
+  ) => {
+    setAlternateAddresses((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const removeAlternateAddress = (index: number) => {
+    setAlternateAddresses((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const mainAddress = [formAddress, formCity, formState, formPincode]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <main className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#eef5ff_0%,#f7fbff_35%,#ffffff_100%)] px-4 py-8 md:px-8 lg:px-10">
@@ -145,11 +237,11 @@ export default function ProfilePage() {
                 </motion.div>
 
                 <h2 className="mt-5 text-2xl font-bold text-slate-900">
-                  {session.user?.name || "User"}
+                  {profileData?.name || session.user?.name || "User"}
                 </h2>
 
                 <p className="mt-2 break-all text-sm text-slate-500">
-                  {session.user?.email || "No email"}
+                  {profileData?.email || session.user?.email || "No email"}
                 </p>
 
                 <motion.button
@@ -179,22 +271,22 @@ export default function ProfilePage() {
                 <InfoCard
                   icon={<FaUser />}
                   label="Full Name"
-                  value={session.user?.name || "Not available"}
+                  value={profileData?.name || session.user?.name || "Not available"}
                 />
                 <InfoCard
                   icon={<FaEnvelope />}
                   label="Email Address"
-                  value={session.user?.email || "Not available"}
+                  value={profileData?.email || session.user?.email || "Not available"}
                 />
                 <InfoCard
                   icon={<FaPhoneAlt />}
                   label="Phone Number"
-                  value={session.user?.phone || "Not added"}
+                  value={profileData?.phone || session.user?.phone || "Not added"}
                 />
                 <InfoCard
                   icon={<FaMapMarkerAlt />}
-                  label="Address"
-                  value={session.user?.address || "Not added"}
+                  label="Primary Address"
+                  value={mainAddress || profileData?.address || session.user?.address || "Not added"}
                 />
               </div>
             </div>
@@ -206,7 +298,7 @@ export default function ProfilePage() {
         {showSettings && (
           <Modal title="Edit Profile" onClose={() => setShowSettings(false)}>
             <div className="space-y-5">
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <InputField
                   label="Name"
                   value={formName}
@@ -232,13 +324,158 @@ export default function ProfilePage() {
                   placeholder="Enter phone number"
                 />
 
-                <TextAreaField
-                  label="Address"
-                  value={formAddress}
-                  onChange={setFormAddress}
+                <InputField
+                  label="City"
+                  value={formCity}
+                  onChange={setFormCity}
                   icon={<FaMapMarkerAlt />}
-                  placeholder="Enter full address"
+                  placeholder="Enter city"
                 />
+
+                <InputField
+                  label="State"
+                  value={formState}
+                  onChange={setFormState}
+                  icon={<FaMapMarkerAlt />}
+                  placeholder="Enter state"
+                />
+
+                <InputField
+                  label="Pincode"
+                  value={formPincode}
+                  onChange={setFormPincode}
+                  icon={<FaMapMarkerAlt />}
+                  placeholder="Enter pincode"
+                />
+              </div>
+
+              <TextAreaField
+                label="Primary Address"
+                value={formAddress}
+                onChange={setFormAddress}
+                icon={<FaMapMarkerAlt />}
+                placeholder="Enter full address"
+              />
+
+              <div className="rounded-2xl border border-[#dbe7f6] bg-white/95 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="font-semibold text-slate-800">Alternate Phones</h4>
+                  <button
+                    type="button"
+                    onClick={addAlternatePhone}
+                    className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-[#0066ff]"
+                  >
+                    <FaPlus />
+                    Add
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {alternatePhones.map((phone, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        value={phone}
+                        onChange={(e) =>
+                          updateAlternatePhone(index, e.target.value)
+                        }
+                        placeholder={`Alternate Phone ${index + 1}`}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-[#0066FF]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAlternatePhone(index)}
+                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-red-600"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[#dbe7f6] bg-white/95 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="font-semibold text-slate-800">Alternate Addresses</h4>
+                  <button
+                    type="button"
+                    onClick={addAlternateAddress}
+                    className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-[#0066ff]"
+                  >
+                    <FaPlus />
+                    Add
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {alternateAddresses.map((address, index) => (
+                    <div
+                      key={index}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <input
+                          type="text"
+                          value={address.label}
+                          onChange={(e) =>
+                            updateAlternateAddress(index, "label", e.target.value)
+                          }
+                          placeholder={`Address ${index + 1}`}
+                          className="max-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold outline-none focus:border-[#0066FF]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeAlternateAddress(index)}
+                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-red-600"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <textarea
+                          value={address.address}
+                          onChange={(e) =>
+                            updateAlternateAddress(index, "address", e.target.value)
+                          }
+                          placeholder="Full Address"
+                          rows={3}
+                          className="md:col-span-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-[#0066FF]"
+                        />
+
+                        <input
+                          type="text"
+                          value={address.city}
+                          onChange={(e) =>
+                            updateAlternateAddress(index, "city", e.target.value)
+                          }
+                          placeholder="City"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-[#0066FF]"
+                        />
+
+                        <input
+                          type="text"
+                          value={address.state}
+                          onChange={(e) =>
+                            updateAlternateAddress(index, "state", e.target.value)
+                          }
+                          placeholder="State"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-[#0066FF]"
+                        />
+
+                        <input
+                          type="text"
+                          value={address.pincode}
+                          onChange={(e) =>
+                            updateAlternateAddress(index, "pincode", e.target.value)
+                          }
+                          placeholder="Pincode"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-[#0066FF]"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="pt-2">
@@ -356,7 +593,7 @@ function TextAreaField({
       <div className="rounded-2xl border border-[#dbe7f6] bg-white/95 px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.03)] transition-all hover:border-[#bfd7ff] hover:shadow-[0_14px_28px_rgba(0,102,255,0.08)]">
         <div className="mb-3 flex items-center gap-3 text-[#0066ff]">
           {icon}
-          <span className="text-sm text-slate-500">Address</span>
+          <span className="text-sm text-slate-500">{label}</span>
         </div>
         <textarea
           rows={4}
@@ -393,7 +630,7 @@ function Modal({
         exit={{ y: 20, scale: 0.96 }}
         transition={{ duration: 0.24 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-[30px] border border-white/80 bg-white/90 p-5 text-slate-800 shadow-[0_34px_90px_rgba(15,23,42,0.14)] backdrop-blur-2xl sm:p-6"
+        className="w-full max-w-2xl rounded-[30px] border border-white/80 bg-white/90 p-5 text-slate-800 shadow-[0_34px_90px_rgba(15,23,42,0.14)] backdrop-blur-2xl sm:p-6 max-h-[90vh] overflow-y-auto"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <h3 className="text-2xl font-bold text-slate-900">{title}</h3>

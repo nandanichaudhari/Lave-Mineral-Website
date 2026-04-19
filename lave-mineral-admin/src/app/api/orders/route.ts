@@ -39,6 +39,12 @@ export async function POST(req: Request) {
       paidAmount = 0,
       discount = 0,
       notes = "",
+
+      // bulk-order friendly optional fields
+      orderType = "Normal",
+      bulkOrder = false,
+      companyName = "",
+      category = "",
     } = body;
 
     if (!name || !phone || !address || !product || !size) {
@@ -60,9 +66,21 @@ export async function POST(req: Request) {
       );
     }
 
+    const safeOrderType =
+      String(orderType).toLowerCase() === "bulk" ? "Bulk" : "Normal";
+
+    const safeBulkOrder =
+      Boolean(bulkOrder) ||
+      safeOrderType === "Bulk" ||
+      parsedBoxes >= 200 ||
+      String(category).toLowerCase() === "bulk" ||
+      String(packaging).toLowerCase().includes("bulk") ||
+      String(notes).toLowerCase().includes("bulk") ||
+      String(companyName).trim().length > 0;
+
     const generatedOrderId = generateOrderId();
 
-    const order = await Order.create({
+    const orderPayload: Record<string, any> = {
       userId,
       orderId: generatedOrderId,
       name,
@@ -83,7 +101,25 @@ export async function POST(req: Request) {
       notes,
       approvalStatus: "Pending",
       status: "Pending Approval",
-    });
+    };
+
+    // Add bulk-order related fields only when present / useful
+    if (safeBulkOrder) {
+      orderPayload.bulkOrder = true;
+      orderPayload.orderType = "Bulk";
+    } else {
+      orderPayload.orderType = "Normal";
+    }
+
+    if (String(companyName).trim()) {
+      orderPayload.companyName = String(companyName).trim();
+    }
+
+    if (String(category).trim()) {
+      orderPayload.category = String(category).trim();
+    }
+
+    const order = await Order.create(orderPayload);
 
     return NextResponse.json(
       {

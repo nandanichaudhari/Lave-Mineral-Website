@@ -16,7 +16,17 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { name, phone, address } = body;
+
+    const {
+      name,
+      phone,
+      address,
+      city,
+      state,
+      pincode,
+      alternatePhoneNumbers,
+      alternateAddresses,
+    } = body || {};
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -27,6 +37,22 @@ export async function PUT(req: Request) {
 
     await connectDB();
 
+    const safeAlternatePhones = Array.isArray(alternatePhoneNumbers)
+      ? alternatePhoneNumbers
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      : [];
+
+    const safeAlternateAddresses = Array.isArray(alternateAddresses)
+      ? alternateAddresses.map((item) => ({
+          label: String(item?.label || "").trim(),
+          address: String(item?.address || "").trim(),
+          city: String(item?.city || "").trim(),
+          state: String(item?.state || "").trim(),
+          pincode: String(item?.pincode || "").trim(),
+        }))
+      : [];
+
     const updatedUser = await User.findOneAndUpdate(
       { email: session.user.email },
       {
@@ -34,6 +60,11 @@ export async function PUT(req: Request) {
           name: name.trim(),
           phone: phone?.trim() || "",
           address: address?.trim() || "",
+          city: city?.trim() || "",
+          state: state?.trim() || "",
+          pincode: pincode?.trim() || "",
+          alternatePhoneNumbers: safeAlternatePhones,
+          alternateAddresses: safeAlternateAddresses,
         },
       },
       { new: true }
@@ -50,10 +81,15 @@ export async function PUT(req: Request) {
       success: true,
       message: "Profile updated successfully",
       user: {
-        name: updatedUser.name,
-        email: updatedUser.email,
+        name: updatedUser.name || "",
+        email: updatedUser.email || "",
         phone: updatedUser.phone || "",
         address: updatedUser.address || "",
+        city: updatedUser.city || "",
+        state: updatedUser.state || "",
+        pincode: updatedUser.pincode || "",
+        alternatePhoneNumbers: updatedUser.alternatePhoneNumbers || [],
+        alternateAddresses: updatedUser.alternateAddresses || [],
       },
     });
   } catch (error) {

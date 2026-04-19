@@ -11,20 +11,18 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session || !session.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const orders = await Order.find({
-      userId: String(session.user.id),
-    })
-      .sort({ createdAt: -1 })
-      .lean();
+    const userId = String(session.user.id);
+
+    const orders = await Order.find({ userId }).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json(
-      { success: true, orders },
+      {
+        success: true,
+        orders: Array.isArray(orders) ? orders : [],
+      },
       { status: 200 }
     );
   } catch (error: any) {

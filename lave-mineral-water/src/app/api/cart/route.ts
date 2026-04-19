@@ -55,7 +55,8 @@ export async function POST(req: Request) {
       product.productId === undefined ||
       !product.name ||
       !product.size ||
-      !product.qty
+      product.qty === undefined ||
+      product.qty === null
     ) {
       return NextResponse.json(
         { error: "Invalid product data" },
@@ -63,39 +64,54 @@ export async function POST(req: Request) {
       );
     }
 
-    let cart = await Cart.findOne({ userId });
+    const productId = Number(product.productId);
+    const qty = Number(product.qty);
 
-    if (!cart) {
-      cart = await Cart.create({
-        userId,
-        items: [
-          {
-            productId: Number(product.productId),
-            name: product.name,
-            size: product.size,
-            img: product.img || "",
-            qty: Number(product.qty),
-          },
-        ],
-      });
-    } else {
-      const index = cart.items.findIndex(
-        (item: any) => Number(item.productId) === Number(product.productId)
+    if (!qty || qty < 1) {
+      return NextResponse.json(
+        { error: "Quantity must be at least 1" },
+        { status: 400 }
       );
+    }
 
-      if (index > -1) {
-        cart.items[index].qty += Number(product.qty);
-      } else {
-        cart.items.push({
-          productId: Number(product.productId),
-          name: product.name,
-          size: product.size,
-          img: product.img || "",
-          qty: Number(product.qty),
-        });
+    // 1) Try increasing existing item quantity atomically
+    let cart = await Cart.findOneAndUpdate(
+      {
+        userId,
+        "items.productId": productId,
+      },
+      {
+        $inc: { "items.$.qty": qty },
+      },
+      {
+        new: true,
       }
+    );
 
-      await cart.save();
+    // 2) If item does not exist, push new item atomically
+    if (!cart) {
+      cart = await Cart.findOneAndUpdate(
+        {
+          userId,
+        },
+        {
+          $setOnInsert: { userId },
+          $push: {
+            items: {
+              productId,
+              name: String(product.name),
+              size: String(product.size),
+              img: String(product.img || ""),
+              qty,
+            },
+          },
+        },
+        {
+          new: true,
+          upsert: true,
+          setDefaultsOnInsert: true,
+        }
+      );
     }
 
     return NextResponse.json({ success: true, cart }, { status: 200 });
@@ -128,7 +144,9 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const cart = await Cart.findOne({ userId });
+    const parsedProductId = Number(productId);
+
+    const cart = await Cart.findOne({ userId }).lean();
 
     if (!cart) {
       return NextResponse.json(
@@ -137,24 +155,54 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const index = cart.items.findIndex(
-      (item: any) => Number(item.productId) === Number(productId)
-    );
+    const existingItem = Array.isArray(cart.items)
+      ? cart.items.find(
+          (item: any) => Number(item.productId) === parsedProductId
+        )
+      : null;
 
-    if (index === -1) {
+    if (!existingItem) {
       return NextResponse.json(
         { error: "Item not found in cart" },
         { status: 404 }
       );
     }
 
+    let updatedCart = null;
+
     if (action === "increase") {
-      cart.items[index].qty += 1;
+      updatedCart = await Cart.findOneAndUpdate(
+        {
+          userId,
+          "items.productId": parsedProductId,
+        },
+        {
+          $inc: { "items.$.qty": 1 },
+        },
+        { new: true }
+      );
     } else if (action === "decrease") {
-      if (cart.items[index].qty > 1) {
-        cart.items[index].qty -= 1;
+      if (Number(existingItem.qty) > 1) {
+        updatedCart = await Cart.findOneAndUpdate(
+          {
+            userId,
+            "items.productId": parsedProductId,
+          },
+          {
+            $inc: { "items.$.qty": -1 },
+          },
+          { new: true }
+        );
       } else {
-        cart.items.splice(index, 1);
+        updatedCart = await Cart.findOneAndUpdate(
+          { userId },
+          {
+            $pull: {
+              items: { productId: parsedProductId },
+            },
+          },
+          { new: true }
+        );
       }
     } else {
       return NextResponse.json(
@@ -163,9 +211,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    await cart.save();
-
-    return NextResponse.json({ success: true, cart }, { status: 200 });
+    return NextResponse.json(
+      { success: true, cart: updatedCart },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("PATCH CART ERROR:", error);
     return NextResponse.json(
@@ -195,7 +244,17 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const cart = await Cart.findOne({ userId });
+    const parsedProductId = Number(productId);
+
+    const cart = await Cart.findOneAndUpdate(
+      { userId },
+      {
+        $pull: {
+          items: { productId: parsedProductId },
+        },
+      },
+      { new: true }
+    );
 
     if (!cart) {
       return NextResponse.json(
@@ -203,12 +262,6 @@ export async function DELETE(req: Request) {
         { status: 200 }
       );
     }
-
-    cart.items = cart.items.filter(
-      (item: any) => Number(item.productId) !== Number(productId)
-    );
-
-    await cart.save();
 
     return NextResponse.json({ success: true, cart }, { status: 200 });
   } catch (error) {

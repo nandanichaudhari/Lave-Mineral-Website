@@ -27,11 +27,18 @@ const steps = [
 
 export default function StatusTracker({ status }: Props) {
   const normalizedStatus = (status || "").trim();
-
   const isCancelled = normalizedStatus === "Cancelled";
 
+  const getTrackerStatus = () => {
+    if (normalizedStatus === "Partially Shipped") return "Shipped";
+    if (normalizedStatus === "Partially Delivered") return "Delivered";
+    return normalizedStatus;
+  };
+
+  const trackerStatus = getTrackerStatus();
+
   const currentIndex = Math.max(
-    steps.findIndex((s) => s.label === normalizedStatus),
+    steps.findIndex((s) => s.label === trackerStatus),
     0
   );
 
@@ -42,7 +49,6 @@ export default function StatusTracker({ status }: Props) {
   return (
     <div className="mt-10 w-full">
       <div className="rounded-3xl bg-white/45 backdrop-blur-xl border border-white/50 shadow-[0_10px_35px_rgba(0,102,255,0.08)] p-5 sm:p-6">
-        {/* HEADER */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h3 className="text-lg sm:text-xl font-semibold text-gray-800">
@@ -57,7 +63,7 @@ export default function StatusTracker({ status }: Props) {
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit ${
               isCancelled
                 ? "bg-red-100 text-red-700"
-                : normalizedStatus === "Delivered"
+                : normalizedStatus === "Delivered" || normalizedStatus === "Partially Delivered"
                 ? "bg-green-100 text-green-700"
                 : "bg-blue-100 text-[#0066FF]"
             }`}
@@ -67,7 +73,6 @@ export default function StatusTracker({ status }: Props) {
           </div>
         </div>
 
-        {/* CANCELLED VIEW */}
         {isCancelled ? (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -89,7 +94,6 @@ export default function StatusTracker({ status }: Props) {
           </motion.div>
         ) : (
           <>
-            {/* PROGRESS LINE */}
             <div className="relative mb-8">
               <div className="absolute top-5 left-0 w-full h-1 bg-gray-200 rounded-full" />
 
@@ -104,8 +108,6 @@ export default function StatusTracker({ status }: Props) {
                 {steps.map((step, index) => {
                   const isCompleted = index < currentIndex;
                   const isCurrent = index === currentIndex;
-                  const isUpcoming = index > currentIndex;
-
                   const Icon = step.icon;
 
                   return (
@@ -171,7 +173,6 @@ export default function StatusTracker({ status }: Props) {
               </div>
             </div>
 
-            {/* BOTTOM SUMMARY */}
             <div className="grid md:grid-cols-3 gap-4">
               <div className="rounded-2xl bg-white/60 border border-white/50 p-4 shadow-sm">
                 <p className="text-xs text-gray-500 mb-1">Current Stage</p>
@@ -200,6 +201,10 @@ export default function StatusTracker({ status }: Props) {
                     ? "Packed for dispatch"
                     : normalizedStatus === "Shipped"
                     ? "On the way"
+                    : normalizedStatus === "Partially Shipped"
+                    ? "Some items are on the way"
+                    : normalizedStatus === "Partially Delivered"
+                    ? "Some items have been delivered"
                     : normalizedStatus === "Delivered"
                     ? "Successfully completed"
                     : "In progress"}

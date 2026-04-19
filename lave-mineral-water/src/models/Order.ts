@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IOrder extends Document {
   orderId: string;
+  mainOrderId?: string;
   userId?: string | null;
 
   name: string;
@@ -42,6 +43,14 @@ export interface IOrder extends Document {
     | "Delivered"
     | "Cancelled";
 
+  bulkOrder?: boolean;
+  orderType?: "Normal" | "Bulk";
+  category?: string;
+  companyName?: string;
+  totalProducts?: number;
+  totalBoxes?: number;
+  source?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -49,6 +58,7 @@ export interface IOrder extends Document {
 const OrderSchema = new Schema<IOrder>(
   {
     orderId: { type: String, unique: true, required: true },
+    mainOrderId: { type: String, default: "", index: true },
 
     userId: { type: String, default: null, index: true },
 
@@ -107,6 +117,18 @@ const OrderSchema = new Schema<IOrder>(
       ],
       default: "Pending Approval",
     },
+
+    bulkOrder: { type: Boolean, default: false },
+    orderType: {
+      type: String,
+      enum: ["Normal", "Bulk"],
+      default: "Normal",
+    },
+    category: { type: String, default: "" },
+    companyName: { type: String, default: "" },
+    totalProducts: { type: Number, default: 0 },
+    totalBoxes: { type: Number, default: 0 },
+    source: { type: String, default: "" },
   },
   { timestamps: true }
 );
@@ -130,7 +152,6 @@ OrderSchema.pre("save", function (this: IOrder) {
     this.paymentStatus = "Paid";
   }
 
-  // Approval -> status sync only when approval actually changes
   if (this.isModified("approvalStatus")) {
     if (this.approvalStatus === "Approved" && this.status === "Pending Approval") {
       this.status = "Confirmed";
@@ -139,6 +160,25 @@ OrderSchema.pre("save", function (this: IOrder) {
     } else if (this.approvalStatus === "Pending") {
       this.status = "Pending Approval";
     }
+  }
+
+  const notesValue = (this.notes || "").toLowerCase();
+  const categoryValue = (this.category || "").toLowerCase();
+
+  const shouldBeBulk =
+    this.bulkOrder === true ||
+    this.orderType === "Bulk" ||
+    categoryValue === "bulk" ||
+    Number(this.totalBoxes || 0) >= 50 ||
+    notesValue.includes("bulk");
+
+  if (shouldBeBulk) {
+    this.bulkOrder = true;
+    this.orderType = "Bulk";
+    if (!this.category) this.category = "Bulk";
+  } else {
+    this.bulkOrder = false;
+    this.orderType = "Normal";
   }
 });
 

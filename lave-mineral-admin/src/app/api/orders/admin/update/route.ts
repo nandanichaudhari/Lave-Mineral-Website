@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/db";
 import Order from "@/models/Order";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const VALID_STATUS = [
   "Pending Approval",
@@ -14,14 +16,26 @@ const VALID_STATUS = [
 
 const VALID_APPROVAL = ["Pending", "Approved", "Rejected"] as const;
 const VALID_PAYMENT_STATUS = ["Pending", "Partial", "Paid"] as const;
+const VALID_ORDER_TYPE = ["Normal", "Bulk"] as const;
 
 type OrderStatus = (typeof VALID_STATUS)[number];
 type ApprovalStatus = (typeof VALID_APPROVAL)[number];
 type PaymentStatus = (typeof VALID_PAYMENT_STATUS)[number];
+type OrderType = (typeof VALID_ORDER_TYPE)[number];
 
 export async function POST(req: Request) {
   try {
     await connectDB();
+
+    // ✅ ADMIN AUTH CHECK (IMPORTANT)
+    const session = await getServerSession(authOptions);
+
+    if (!session || session.user?.role !== "admin") {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Admin only" },
+        { status: 401 }
+      );
+    }
 
     const body = await req.json();
 
@@ -33,6 +47,13 @@ export async function POST(req: Request) {
       discount,
       paidAmount,
       notes,
+
+      // bulk fields
+      orderType,
+      bulkOrder,
+      companyName,
+      category,
+      packaging,
     } = body;
 
     if (!orderId || typeof orderId !== "string") {
@@ -52,7 +73,7 @@ export async function POST(req: Request) {
     }
 
     // =========================
-    // Approval Handling
+    // APPROVAL LOGIC
     // =========================
     if (approvalStatus !== undefined) {
       if (!VALID_APPROVAL.includes(approvalStatus)) {
@@ -81,7 +102,7 @@ export async function POST(req: Request) {
     }
 
     // =========================
-    // Order Status Handling
+    // STATUS LOGIC
     // =========================
     if (status !== undefined) {
       if (!VALID_STATUS.includes(status)) {
@@ -93,15 +114,15 @@ export async function POST(req: Request) {
 
       const nextStatus = status as OrderStatus;
 
-      const isBlockedByApproval =
+      const blocked =
         order.approvalStatus !== "Approved" &&
         !["Pending Approval", "Cancelled"].includes(nextStatus);
 
-      if (isBlockedByApproval) {
+      if (blocked) {
         return NextResponse.json(
           {
             success: false,
-            error: "Approve the order before moving to processing states",
+            error: "Approve order before processing",
           },
           { status: 400 }
         );
@@ -111,7 +132,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             success: false,
-            error: "Rejected orders can only remain cancelled",
+            error: "Rejected orders must stay cancelled",
           },
           { status: 400 }
         );
@@ -121,7 +142,7 @@ export async function POST(req: Request) {
     }
 
     // =========================
-    // Payment Handling
+    // PAYMENT LOGIC
     // =========================
     const nextTotal =
       totalAmount !== undefined
@@ -140,7 +161,7 @@ export async function POST(req: Request) {
 
     if (
       [nextTotal, nextDiscount, nextPaid].some(
-        (value) => Number.isNaN(value) || value < 0
+        (v) => Number.isNaN(v) || v < 0
       )
     ) {
       return NextResponse.json(
@@ -151,7 +172,7 @@ export async function POST(req: Request) {
 
     if (nextDiscount > nextTotal) {
       return NextResponse.json(
-        { success: false, error: "Discount cannot be greater than total amount" },
+        { success: false, error: "Discount > total not allowed" },
         { status: 400 }
       );
     }
@@ -161,13 +182,9 @@ export async function POST(req: Request) {
 
     let paymentStatus: PaymentStatus = "Pending";
 
-    if (nextPaid <= 0) {
-      paymentStatus = "Pending";
-    } else if (nextPaid < finalAmount) {
-      paymentStatus = "Partial";
-    } else {
-      paymentStatus = "Paid";
-    }
+    if (nextPaid <= 0) paymentStatus = "Pending";
+    else if (nextPaid < finalAmount) paymentStatus = "Partial";
+    else paymentStatus = "Paid";
 
     order.totalAmount = nextTotal;
     order.discount = nextDiscount;
@@ -175,8 +192,66 @@ export async function POST(req: Request) {
     order.remainingAmount = remainingAmount;
     order.paymentStatus = paymentStatus;
 
+    // =========================
+    // NOTES
+    // =========================
     if (typeof notes === "string") {
       order.notes = notes.trim();
+    }
+
+    // =========================
+    // BULK LOGIC
+    // =========================
+    const safeOrderType: OrderType | undefined =
+      typeof orderType === "string" &&
+      VALID_ORDER_TYPE.includes(orderType as OrderType)
+        ? (orderType as OrderType)
+        : undefined;
+
+    const nextCompanyName =
+      typeof companyName === "string" ? companyName.trim() : undefined;
+
+    const nextCategory =
+      typeof category === "string" ? category.trim() : undefined;
+
+    const nextPackaging =
+      typeof packaging === "string" ? packaging.trim() : undefined;
+
+    const shouldBeBulk =
+      bulkOrder === true ||
+      safeOrderType === "Bulk" ||
+      String(nextCategory || "").toLowerCase() === "bulk" ||
+      String(nextPackaging || "").toLowerCase().includes("bulk") ||
+      String(order.notes || "").toLowerCase().includes("bulk") ||
+      Boolean(nextCompanyName) ||
+      Number(order.boxes || 0) >= 200;
+
+    if (safeOrderType !== undefined) {
+      order.orderType = safeOrderType;
+    }
+
+    if (typeof bulkOrder === "boolean") {
+      order.bulkOrder = bulkOrder;
+    }
+
+    if (nextCompanyName !== undefined) {
+      order.companyName = nextCompanyName;
+    }
+
+    if (nextCategory !== undefined) {
+      order.category = nextCategory;
+    }
+
+    if (nextPackaging !== undefined) {
+      order.packaging = nextPackaging;
+    }
+
+    if (shouldBeBulk) {
+      order.bulkOrder = true;
+      order.orderType = "Bulk";
+    } else if (bulkOrder === false || safeOrderType === "Normal") {
+      order.bulkOrder = false;
+      order.orderType = "Normal";
     }
 
     await order.save();
@@ -191,6 +266,7 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("ADMIN ORDER UPDATE ERROR:", error);
+
     return NextResponse.json(
       {
         success: false,

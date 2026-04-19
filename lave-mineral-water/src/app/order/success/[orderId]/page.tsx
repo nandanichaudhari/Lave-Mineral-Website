@@ -108,21 +108,19 @@ export default function SuccessPage() {
           </Link>
 
           <Link
-            href="/update"
+            href={`/update?orderId=${encodeURIComponent(orderId)}`}
             className="py-3 rounded-xl text-sm font-medium bg-white text-[#4c6ef5] border border-blue-100 shadow-md hover:scale-[1.03] transition-all text-center"
           >
             ✏️ Update
           </Link>
 
           <Link
-            href="/cancel"
+            href={`/cancel?orderId=${encodeURIComponent(orderId)}`}
             className="py-3 rounded-xl text-sm font-medium bg-white text-[#868e96] border border-gray-200 shadow-md hover:scale-[1.03] transition-all text-center"
           >
             ❌ Cancel
           </Link>
         </div>
-
-        
 
         <Link
           href="/orderHistory"

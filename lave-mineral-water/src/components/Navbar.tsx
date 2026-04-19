@@ -15,8 +15,8 @@ import {
   FaSignInAlt,
   FaBoxOpen,
   FaHome,
-  FaCommentDots,
   FaPalette,
+  FaInfoCircle,
 } from "react-icons/fa";
 import { HiOutlineShoppingBag } from "react-icons/hi2";
 
@@ -24,14 +24,13 @@ const navLinks = [
   { label: "Home", href: "/", icon: <FaHome /> },
   { label: "Products", href: "/explore", icon: <FaBoxOpen /> },
   { label: "Custom Bottle", href: "/customize", icon: <FaPalette /> },
-  { label: "Feedback", href: "/#feedback", icon: <FaCommentDots /> },
+  { label: "About Us", href: "/aboutus", icon: <FaInfoCircle /> },
   { label: "Track", href: "/track", icon: <FaTruck /> },
 ];
 
 export default function Navbar() {
   const [cartCount, setCartCount] = useState(0);
   const [open, setOpen] = useState(false);
-  const [currentHash, setCurrentHash] = useState("");
 
   const { data: session, status } = useSession();
   const pathname = usePathname();
@@ -64,33 +63,10 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    const updateHash = () => {
-      if (typeof window !== "undefined") {
-        setCurrentHash(window.location.hash);
-      }
-    };
-
-    updateHash();
-    window.addEventListener("hashchange", updateHash);
-
-    return () => window.removeEventListener("hashchange", updateHash);
+    setOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname, currentHash]);
-
-  const isActive = (path: string) => {
-    if (path === "/#feedback") {
-      return pathname === "/" && currentHash === "#feedback";
-    }
-
-    if (path === "/") {
-      return pathname === "/" && currentHash !== "#feedback";
-    }
-
-    return pathname === path;
-  };
+  const isActive = (path: string) => pathname === path;
 
   const navTextClass = (path: string) =>
     isActive(path)
@@ -110,7 +86,6 @@ export default function Navbar() {
         className="fixed left-0 top-0 z-50 w-full border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-md"
       >
         <div className="mx-auto flex w-full items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          {/* Left: Logo + Brand */}
           <div className="flex min-w-0 flex-shrink-0 items-center">
             <Link href="/" className="flex items-center gap-3">
               <Image
@@ -131,7 +106,6 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Right: Desktop Nav */}
           <div className="hidden flex-1 items-center justify-end gap-8 lg:flex">
             {navLinks.map((link) => (
               <Link
@@ -196,7 +170,6 @@ export default function Navbar() {
             ) : null}
           </div>
 
-          {/* Mobile Right */}
           <div className="flex items-center gap-3 lg:hidden">
             <Link
               href="/cart"
@@ -220,7 +193,6 @@ export default function Navbar() {
         </div>
       </motion.nav>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
         {open && (
           <motion.div

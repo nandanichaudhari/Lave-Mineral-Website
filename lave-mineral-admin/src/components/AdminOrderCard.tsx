@@ -15,6 +15,9 @@ import {
   FaTruck,
   FaChevronDown,
   FaPhone,
+  FaLayerGroup,
+  FaBuilding,
+  FaTags,
 } from "react-icons/fa";
 import { FaWhatsapp } from "react-icons/fa6";
 
@@ -47,6 +50,13 @@ type Order = {
     | "Cancelled";
   notes?: string;
   createdAt?: string;
+
+  // Optional bulk-order-friendly fields
+  orderType?: "Normal" | "Bulk";
+  bulkOrder?: boolean;
+  companyName?: string;
+  packaging?: string;
+  category?: string;
 };
 
 export default function AdminOrderCard({
@@ -74,6 +84,35 @@ export default function AdminOrderCard({
   const [notes, setNotes] = useState(order.notes || "");
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  const isBulkOrder = useMemo(() => {
+    const notesValue = (order.notes || "").toLowerCase();
+    const packagingValue = (order.packaging || "").toLowerCase();
+    const productValue = (order.product || "").toLowerCase();
+    const companyValue = (order.companyName || "").toLowerCase();
+    const orderTypeValue = (order.orderType || "").toLowerCase();
+    const categoryValue = (order.category || "").toLowerCase();
+
+    return Boolean(
+      order.bulkOrder ||
+        orderTypeValue === "bulk" ||
+        categoryValue === "bulk" ||
+        packagingValue.includes("bulk") ||
+        productValue.includes("bulk") ||
+        notesValue.includes("bulk") ||
+        companyValue.length > 0 ||
+        Number(order.boxes || 0) >= 200
+    );
+  }, [
+    order.bulkOrder,
+    order.orderType,
+    order.category,
+    order.packaging,
+    order.product,
+    order.notes,
+    order.companyName,
+    order.boxes,
+  ]);
 
   const liveRemaining = useMemo(() => {
     const total = Number(totalAmount || 0);
@@ -145,6 +184,7 @@ export default function AdminOrderCard({
 Regarding your order:
 
 Order ID: ${order.orderId}
+Order Type: ${isBulkOrder ? "Bulk Order" : "Standard Order"}
 Product: ${order.product}
 Quantity: ${order.boxes}
 
@@ -187,11 +227,27 @@ Lave Mineral Water Team`;
     <motion.div
       whileHover={{ y: -4 }}
       transition={{ duration: 0.22 }}
-      className="group relative overflow-hidden rounded-[30px] border border-white/75 bg-white/72 backdrop-blur-2xl shadow-[0_22px_48px_rgba(15,23,42,0.08)] hover:shadow-[0_30px_60px_rgba(0,102,255,0.14)] transition-all"
+      className={`group relative overflow-hidden rounded-[30px] border bg-white/72 backdrop-blur-2xl shadow-[0_22px_48px_rgba(15,23,42,0.08)] transition-all ${
+        isBulkOrder
+          ? "border-[#d7e8ff] hover:shadow-[0_30px_60px_rgba(0,102,255,0.18)]"
+          : "border-white/75 hover:shadow-[0_30px_60px_rgba(0,102,255,0.14)]"
+      }`}
     >
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(0,102,255,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(0,102,255,0.05),transparent_24%)]" />
+      <div
+        className={`absolute inset-0 pointer-events-none ${
+          isBulkOrder
+            ? "bg-[radial-gradient(circle_at_top_right,rgba(0,102,255,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(0,102,255,0.08),transparent_24%)]"
+            : "bg-[radial-gradient(circle_at_top_right,rgba(0,102,255,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(0,102,255,0.05),transparent_24%)]"
+        }`}
+      />
 
       <div className="relative z-10 p-4 sm:p-5 space-y-5">
+        {isBulkOrder && (
+          <div className="flex justify-start">
+            <BulkBadge />
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -208,19 +264,38 @@ Lave Mineral Water Team`;
               <motion.div
                 whileHover={{ scale: 1.08, rotate: -6 }}
                 transition={{ duration: 0.2 }}
-                className="flex h-13 w-13 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#eef5ff] to-[#dcecff] text-[#0066ff] border border-[#d7e8ff] shadow-[0_12px_24px_rgba(0,102,255,0.10)]"
+                className={`flex h-13 w-13 items-center justify-center rounded-[20px] text-[#0066ff] border shadow-[0_12px_24px_rgba(0,102,255,0.10)] ${
+                  isBulkOrder
+                    ? "bg-gradient-to-br from-[#dbeafe] to-[#bfdbfe] border-[#bfdcff]"
+                    : "bg-gradient-to-br from-[#eef5ff] to-[#dcecff] border-[#d7e8ff]"
+                }`}
               >
-                <FaUser />
+                {isBulkOrder ? <FaBuilding /> : <FaUser />}
               </motion.div>
 
               <div className="min-w-0">
-                <p className="font-semibold text-slate-900 truncate">
-                  {order.name}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-slate-900 truncate">
+                    {order.name}
+                  </p>
+
+                  {isBulkOrder && (
+                    <span className="inline-flex items-center rounded-full bg-[#eef5ff] border border-[#cfe2ff] px-2.5 py-1 text-[11px] font-semibold text-[#0066ff]">
+                      Priority
+                    </span>
+                  )}
+                </div>
+
                 <p className="text-sm text-slate-500 flex items-center gap-2">
                   <FaPhone className="text-[#0066ff]" />
                   <span>{order.phone}</span>
                 </p>
+
+                {(order.companyName || order.packaging) && (
+                  <p className="mt-1 text-xs text-slate-500 truncate">
+                    {order.companyName ? order.companyName : order.packaging}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -252,6 +327,7 @@ Lave Mineral Water Team`;
             icon={<FaClipboardCheck />}
             label="Quantity"
             value={`${order.boxes} Boxes`}
+            highlight={isBulkOrder}
           />
           <MiniInfo
             icon={<FaWallet />}
@@ -268,6 +344,27 @@ Lave Mineral Water Team`;
             }
           />
         </div>
+
+        {isBulkOrder && (
+          <motion.div
+            whileHover={{ y: -2 }}
+            className="rounded-[22px] border border-[#d7e8ff] bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] px-4 py-3 shadow-[0_10px_24px_rgba(0,102,255,0.06)]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef5ff] to-[#dcecff] text-[#0066ff] border border-[#d7e8ff] shadow-[0_10px_24px_rgba(0,102,255,0.08)] shrink-0">
+                <FaLayerGroup />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[#0066ff]">
+                  Bulk order identified
+                </p>
+                <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                  This order is being highlighted as a bulk request in admin view.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <motion.button
@@ -314,6 +411,25 @@ Lave Mineral Water Team`;
                   />
                 </div>
               </GlassSection>
+
+              {isBulkOrder && (
+                <GlassSection title="Bulk Order Details" icon={<FaLayerGroup />}>
+                  <div className="grid gap-3">
+                    <DetailRow
+                      label="Order Type"
+                      value={isBulkOrder ? "Bulk Order" : "Standard Order"}
+                    />
+                    <DetailRow
+                      label="Company"
+                      value={order.companyName || "-"}
+                    />
+                    <DetailRow
+                      label="Packaging"
+                      value={order.packaging || "-"}
+                    />
+                  </div>
+                </GlassSection>
+              )}
 
               <GlassSection title="Approval Control" icon={<FaCheckCircle />}>
                 <select
@@ -495,15 +611,21 @@ function MiniInfo({
   icon,
   label,
   value,
+  highlight = false,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  highlight?: boolean;
 }) {
   return (
     <motion.div
       whileHover={{ y: -2 }}
-      className="rounded-[20px] border border-white/70 bg-white/72 backdrop-blur-xl p-4 shadow-[0_10px_24px_rgba(33,72,140,0.05)] hover:shadow-[0_16px_30px_rgba(0,102,255,0.10)] transition-all"
+      className={`rounded-[20px] border backdrop-blur-xl p-4 transition-all ${
+        highlight
+          ? "border-[#d7e8ff] bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] shadow-[0_12px_26px_rgba(0,102,255,0.08)] hover:shadow-[0_16px_30px_rgba(0,102,255,0.12)]"
+          : "border-white/70 bg-white/72 shadow-[0_10px_24px_rgba(33,72,140,0.05)] hover:shadow-[0_16px_30px_rgba(0,102,255,0.10)]"
+      }`}
     >
       <div className="mb-2 text-[#0066ff]">{icon}</div>
       <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
@@ -559,5 +681,14 @@ function PaymentInput({
         />
       </div>
     </motion.div>
+  );
+}
+
+function BulkBadge() {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[#b9d8ff] bg-[linear-gradient(180deg,#eef6ff_0%,#dcecff_100%)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0066ff] shadow-[0_8px_20px_rgba(0,102,255,0.10)]">
+      <FaLayerGroup />
+      Bulk Order
+    </span>
   );
 }

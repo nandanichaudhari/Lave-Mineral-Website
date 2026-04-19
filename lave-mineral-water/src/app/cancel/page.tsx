@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   FaTimesCircle,
@@ -8,13 +8,22 @@ import {
   FaExclamationTriangle,
 } from "react-icons/fa";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export default function CancelPage() {
+  const searchParams = useSearchParams();
   const [orderId, setOrderId] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const queryOrderId = searchParams.get("orderId") || "";
+    if (queryOrderId) {
+      setOrderId(queryOrderId);
+    }
+  }, [searchParams]);
+
   const handleCancel = async () => {
-    if (!orderId) {
+    if (!orderId.trim()) {
       alert("Please enter Order ID");
       return;
     }
@@ -24,6 +33,9 @@ export default function CancelPage() {
 
       const res = await fetch("/api/cancel", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ orderId }),
       });
 
@@ -31,6 +43,7 @@ export default function CancelPage() {
 
       alert(data.message || data.error);
     } catch (err) {
+      console.error(err);
       alert("Something went wrong");
     } finally {
       setLoading(false);

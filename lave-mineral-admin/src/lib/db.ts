@@ -27,25 +27,39 @@ global.mongooseCache = globalCache;
 
 // ✅ Connect DB (optimized & cached)
 export async function connectDB() {
-  // Already connected
-  if (globalCache.conn) {
-    return globalCache.conn;
-  }
-
-  // Create connection promise if not exists
-  if (!globalCache.promise) {
-    globalCache.promise = mongoose.connect(MONGODB_URI, {
-      dbName: "Lave_Order",
-      bufferCommands: false,
-    });
-  }
-
   try {
+    // Already connected
+    if (globalCache.conn) {
+      return globalCache.conn;
+    }
+
+    // Create connection promise if not exists
+    if (!globalCache.promise) {
+      globalCache.promise = mongoose.connect(MONGODB_URI, {
+        dbName: "Lave_Order",
+        bufferCommands: false,
+
+        // ✅ Better production configs
+        maxPoolSize: 10, // connection pooling
+        serverSelectionTimeoutMS: 5000,
+      });
+
+      // Optional dev log
+      if (process.env.NODE_ENV === "development") {
+        console.log("⚡ Connecting to MongoDB...");
+      }
+    }
+
     globalCache.conn = await globalCache.promise;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("✅ MongoDB Connected");
+    }
+
+    return globalCache.conn;
   } catch (error) {
     globalCache.promise = null;
+    console.error("❌ MongoDB Connection Error:", error);
     throw error;
   }
-
-  return globalCache.conn;
 }

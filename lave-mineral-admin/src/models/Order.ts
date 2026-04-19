@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IOrder extends Document {
   orderId: string;
+  mainOrderId?: string;
   userId?: string | null;
 
   name: string;
@@ -42,6 +43,15 @@ export interface IOrder extends Document {
     | "Delivered"
     | "Cancelled";
 
+  // Bulk order support
+  bulkOrder?: boolean;
+  orderType?: "Normal" | "Bulk";
+  companyName?: string;
+  category?: string;
+  totalProducts?: number;
+  totalBoxes?: number;
+  source?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -49,6 +59,7 @@ export interface IOrder extends Document {
 const OrderSchema = new Schema<IOrder>(
   {
     orderId: { type: String, unique: true, required: true },
+    mainOrderId: { type: String, default: "", index: true },
 
     userId: { type: String, default: null, index: true },
 
@@ -107,6 +118,19 @@ const OrderSchema = new Schema<IOrder>(
       ],
       default: "Pending Approval",
     },
+
+    // Bulk order fields
+    bulkOrder: { type: Boolean, default: false },
+    orderType: {
+      type: String,
+      enum: ["Normal", "Bulk"],
+      default: "Normal",
+    },
+    companyName: { type: String, default: "" },
+    category: { type: String, default: "" },
+    totalProducts: { type: Number, default: 0 },
+    totalBoxes: { type: Number, default: 0 },
+    source: { type: String, default: "" },
   },
   { timestamps: true }
 );
@@ -128,6 +152,36 @@ OrderSchema.pre("save", function (this: IOrder) {
     this.paymentStatus = "Partial";
   } else {
     this.paymentStatus = "Paid";
+  }
+
+  // Auto bulk detection safety
+  const notesValue = (this.notes || "").toLowerCase();
+  const packagingValue = (this.packaging || "").toLowerCase();
+  const productValue = (this.product || "").toLowerCase();
+  const companyValue = (this.companyName || "").trim().toLowerCase();
+  const categoryValue = (this.category || "").toLowerCase();
+
+  const shouldBeBulk =
+    this.bulkOrder === true ||
+    this.orderType === "Bulk" ||
+    categoryValue === "bulk" ||
+    packagingValue.includes("bulk") ||
+    productValue.includes("bulk") ||
+    notesValue.includes("bulk") ||
+    companyValue.length > 0 ||
+    Number(this.totalBoxes || 0) >= 50 ||
+    Number(this.boxes || 0) >= 200;
+
+  if (shouldBeBulk) {
+    this.bulkOrder = true;
+    this.orderType = "Bulk";
+
+    if (!this.category || !this.category.trim()) {
+      this.category = "Bulk";
+    }
+  } else {
+    this.bulkOrder = false;
+    this.orderType = "Normal";
   }
 
   // Approval -> status sync only when approval actually changes

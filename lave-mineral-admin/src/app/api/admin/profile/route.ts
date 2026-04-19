@@ -5,6 +5,7 @@ import Admin from "@/models/Admin";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
+// 🔐 Get Admin from Token
 async function getAdminFromToken(req: NextRequest) {
   const token = await getToken({
     req,
@@ -12,9 +13,7 @@ async function getAdminFromToken(req: NextRequest) {
     cookieName: "admin-session-token",
   });
 
-  if (!token?.email) {
-    return null;
-  }
+  if (!token?.email) return null;
 
   await connectDB();
 
@@ -25,6 +24,7 @@ async function getAdminFromToken(req: NextRequest) {
   return admin;
 }
 
+// ✅ GET ADMIN PROFILE (UPDATED)
 export async function GET(req: NextRequest) {
   try {
     const admin = await getAdminFromToken(req);
@@ -40,9 +40,19 @@ export async function GET(req: NextRequest) {
       success: true,
       admin: {
         id: admin._id.toString(),
-        name: admin.name,
-        email: admin.email,
+        name: admin.name || "",
+        email: admin.email || "",
         image: admin.image || "",
+
+        // ✅ NEW FIELDS (IMPORTANT FOR CHECKOUT)
+        phone: admin.phone || "",
+        address: admin.address || "",
+        city: admin.city || "",
+        state: admin.state || "",
+        pincode: admin.pincode || "",
+
+        alternatePhoneNumbers: admin.alternatePhoneNumbers || [],
+        alternateAddresses: admin.alternateAddresses || [],
       },
     });
   } catch (error) {
@@ -55,6 +65,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ✅ UPDATE PROFILE IMAGE (UNCHANGED + SAFE)
 export async function PUT(req: NextRequest) {
   try {
     const admin = await getAdminFromToken(req);
@@ -93,13 +104,14 @@ export async function PUT(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const base64 = buffer.toString("base64");
+
     const imageDataUrl = `data:${file.type};base64,${base64}`;
 
     const updatedAdmin = await Admin.findOneAndUpdate(
       { email: admin.email.toLowerCase() },
       { image: imageDataUrl },
-      { returnDocument: "after" }
-    ).select("name email image");
+      { new: true }
+    ).select("name email image phone address city state pincode");
 
     if (!updatedAdmin) {
       return NextResponse.json(
@@ -116,6 +128,12 @@ export async function PUT(req: NextRequest) {
         name: updatedAdmin.name,
         email: updatedAdmin.email,
         image: updatedAdmin.image || "",
+
+        phone: updatedAdmin.phone || "",
+        address: updatedAdmin.address || "",
+        city: updatedAdmin.city || "",
+        state: updatedAdmin.state || "",
+        pincode: updatedAdmin.pincode || "",
       },
     });
   } catch (error) {

@@ -1,7 +1,14 @@
 import mongoose, { Schema, models, model } from "mongoose";
 
-// ✅ TYPES
 export type UserRole = "user" | "admin";
+
+export interface IAlternateAddress {
+  label?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
 
 export interface IUser {
   name: string;
@@ -10,11 +17,46 @@ export interface IUser {
   role: UserRole;
   phone?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  alternatePhoneNumbers?: string[];
+  alternateAddresses?: IAlternateAddress[];
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-// ✅ SCHEMA
+const AlternateAddressSchema = new Schema<IAlternateAddress>(
+  {
+    label: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    address: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    city: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    state: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
 const UserSchema = new Schema<IUser>(
   {
     name: {
@@ -59,13 +101,40 @@ const UserSchema = new Schema<IUser>(
       default: "",
       trim: true,
     },
+
+    city: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    state: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    pincode: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    alternatePhoneNumbers: {
+      type: [String],
+      default: [],
+    },
+
+    alternateAddresses: {
+      type: [AlternateAddressSchema],
+      default: [],
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// ✅ PREVENT RE-COMPILE ERROR
 const User = models.User || model<IUser>("User", UserSchema);
 
 export default User;

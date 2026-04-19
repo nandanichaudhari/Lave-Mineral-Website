@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Droplet, Shield, Leaf, Award, Star, ArrowRight } from "lucide-react";
+import FeedbackSection from "@/components/FeedbackSection";
 
 export default function Home() {
   return (
@@ -11,13 +12,13 @@ export default function Home() {
       <section
         className="relative flex min-h-[calc(100vh-90px)] w-full items-center justify-center overflow-hidden px-6 text-center"
         style={{
-          backgroundImage: "url('/images/hero-bg.png')",
+          backgroundImage: "url('/images/hero-bg1.jpeg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
         }}
       >
-        <div className="absolute inset-0 bg-white/65 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]" />
 
         <div className="relative z-10 mx-auto w-full max-w-4xl py-20">
           <Image
@@ -179,63 +180,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials / Feedback Section */}
-      <section id="feedback" className="w-full bg-white py-24">
-        <div className="mx-auto max-w-7xl px-6 text-center">
-          <h2 className="text-4xl font-bold text-[#0A1F44] md:text-5xl">
-            What Our Customers Say
-          </h2>
-          <p className="mt-4 text-lg text-gray-600">
-            Trusted by thousands who value purity and quality
-          </p>
+      <FeedbackSection/>
 
-          <div className="mt-16 grid gap-10 md:grid-cols-3">
-            <div className="rounded-3xl bg-gray-50 p-8 text-left shadow-sm transition hover:shadow-lg">
-              <h4 className="font-semibold text-[#0A1F44]">Rahul Sharma</h4>
-              <p className="mt-6 text-gray-600">
-                The taste and purity of Lave Mineral Water is unmatched.
-                It&apos;s now our family&apos;s daily choice!
-              </p>
-              <div className="mt-4 flex gap-1 text-yellow-500">
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-gray-50 p-8 text-left shadow-sm transition hover:shadow-lg">
-              <h4 className="font-semibold text-[#0A1F44]">Priya Verma</h4>
-              <p className="mt-6 text-gray-600">
-                I love the eco-friendly packaging and premium feel. Highly
-                recommend it!
-              </p>
-              <div className="mt-4 flex gap-1 text-yellow-500">
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-gray-50 p-8 text-left shadow-sm transition hover:shadow-lg">
-              <h4 className="font-semibold text-[#0A1F44]">Amit Patel</h4>
-              <p className="mt-6 text-gray-600">
-                Perfect for office and home use. The quality speaks for itself.
-              </p>
-              <div className="mt-4 flex gap-1 text-yellow-500">
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-                <Star size={18} fill="currentColor" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Final CTA */}
       <section
