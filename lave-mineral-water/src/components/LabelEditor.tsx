@@ -1057,7 +1057,14 @@ interface AIPanelProps {
   onGenerate: () => void; onReset: () => void;
   onApply: (d: AIGeneratedDesign) => void; onClose: () => void;
 }
-function AIPanel({ aiPrompt, setAiPrompt, aiLoading, aiError, aiResults, aiGenerated, onGenerate, onReset, onApply, onClose }: AIPanelProps) {
+  function AIPanel({ aiPrompt, setAiPrompt, aiLoading, aiError, aiResults, aiGenerated, onGenerate, onReset, onApply, onClose }: AIPanelProps) {
+  const [cooldown, setCooldown] = useState(false);
+
+  const handleGenerate = () => {
+    setCooldown(true);
+    onGenerate();
+    setTimeout(() => setCooldown(false), 10000);
+  };
   return (
     <div className="w-80 bg-white border-r border-sky-100 flex flex-col overflow-y-auto">
       <div className="px-4 pt-4 pb-3 border-b border-sky-50 shrink-0">
@@ -1077,12 +1084,12 @@ function AIPanel({ aiPrompt, setAiPrompt, aiLoading, aiError, aiResults, aiGener
           <label className="text-[10px] text-sky-500 uppercase tracking-widest font-semibold">Your Prompt</label>
           <div className="relative">
             <textarea value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) onGenerate(); }}
+              onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleGenerate(); }}
               placeholder="e.g. Luxury black & gold premium mineral water…" rows={3}
               className="w-full bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5 text-sm text-sky-900 placeholder-sky-300 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-all resize-none leading-relaxed" />
             {aiPrompt && <button onClick={() => setAiPrompt("")} className="absolute top-2 right-2 text-sky-300 hover:text-sky-500 text-xs">✕</button>}
           </div>
-          <button onClick={onGenerate} disabled={!aiPrompt.trim() || aiLoading}
+          <button onClick={handleGenerate} disabled={!aiPrompt.trim() || aiLoading || cooldown}
             className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-2
               ${!aiPrompt.trim() || aiLoading ? "bg-sky-100 text-sky-300 cursor-not-allowed" : "bg-gradient-to-r from-violet-500 to-sky-500 text-white hover:opacity-90 hover:scale-[1.01] shadow-lg shadow-violet-200/50"}`}>
             {aiLoading ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generating…</> : <>✦ Generate Label Designs</>}
